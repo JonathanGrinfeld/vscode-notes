@@ -1,0 +1,233 @@
+{
+    "name": "vscodenotes",
+    "displayName": "VSCODE Notes",
+    "description": "Local-only code notes stored in SQLite.",
+    "version": "0.0.1",
+    "private": true,
+    "license": "MIT",
+    "publisher": "JonathanGrinfeld",
+    "author": "Jonathan Grinfeld",
+    "engines": {
+        "vscode": "^1.90.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "extensionKind": [
+        "ui"
+    ],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "vscodenotes.createNote",
+                "title": "vscode-notes: Create Note"
+            },
+            {
+                "command": "vscodenotes.removeNoteAtCursor",
+                "title": "vscode-notes: Remove Note at Cursor"
+            },
+            {
+                "command": "vscodenotes.openStorageLocation",
+                "title": "vscode-notes: Open Notes Storage Location"
+            },
+            {
+                "command": "vscodenotes.refreshNotesPanel",
+                "title": "vscode-notes: Refresh Notes Panel",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "vscodenotes.closeNotesFile",
+                "title": "vscode-notes: Close File in Notes Panel",
+                "icon": "$(close)"
+            },
+            {
+                "command": "vscodenotes.openNoteLocation",
+                "title": "vscode-notes: Open Note Location"
+            },
+            {
+                "command": "vscodenotes.editNote",
+                "title": "vscode-notes: Edit Note",
+                "icon": "$(edit)"
+            },
+            {
+                "command": "vscodenotes.deleteNote",
+                "title": "vscode-notes: Delete Note",
+                "icon": "$(trash)"
+            },
+            {
+                "command": "vscodenotes.configure",
+                "title": "vscode-notes: Configure Notes",
+                "icon": "$(settings-gear)"
+            },
+            {
+                "command": "vscodenotes.shareNotesAsChatContext",
+                "title": "vscode-notes: Share Notes as Chat Context",
+                "icon": "$(comment-discussion)"
+            }
+        ],
+        "views": {
+            "explorer": [
+                {
+                    "id": "vscodenotes.workspaceNotes",
+                    "name": "Notes",
+                    "when": "workspaceFolderCount != 0"
+                }
+            ]
+        },
+        "chatParticipants": [
+            {
+                "id": "vscodenotes.notes",
+                "name": "notes",
+                "fullName": "VSCODE Notes",
+                "description": "Share workspace notes as chat context.",
+                "commands": [
+                    {
+                        "name": "sharenotes",
+                        "description": "Share workspace notes as context."
+                    }
+                ]
+            }
+        ],
+        "menus": {
+            "editor/context": [
+                {
+                    "command": "vscodenotes.createNote",
+                    "when": "editorTextFocus && editorHasSelection",
+                    "group": "navigation@100"
+                },
+                {
+                    "command": "vscodenotes.removeNoteAtCursor",
+                    "when": "editorTextFocus && vscodenotes.hasNoteAtCursor",
+                    "group": "navigation@101"
+                }
+            ],
+            "view/title": [
+                {
+                    "command": "vscodenotes.refreshNotesPanel",
+                    "when": "view == vscodenotes.workspaceNotes",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "vscodenotes.configure",
+                    "when": "view == vscodenotes.workspaceNotes",
+                    "group": "navigation@2"
+                }
+            ],
+            "view/item/context": [
+                {
+                    "command": "vscodenotes.closeNotesFile",
+                    "when": "view == vscodenotes.workspaceNotes && viewItem == notesFile",
+                    "group": "inline@1"
+                },
+                {
+                    "command": "vscodenotes.editNote",
+                    "when": "view == vscodenotes.workspaceNotes && viewItem == note",
+                    "group": "inline@1"
+                },
+                {
+                    "command": "vscodenotes.deleteNote",
+                    "when": "view == vscodenotes.workspaceNotes && viewItem == note",
+                    "group": "inline@2"
+                }
+            ],
+            "commandPalette": [
+                {
+                    "command": "vscodenotes.createNote",
+                    "when": "editorTextFocus && editorHasSelection"
+                },
+                {
+                    "command": "vscodenotes.removeNoteAtCursor",
+                    "when": "editorTextFocus && vscodenotes.hasNoteAtCursor"
+                },
+                {
+                    "command": "vscodenotes.openStorageLocation"
+                },
+                {
+                    "command": "vscodenotes.configure"
+                },
+                {
+                    "command": "vscodenotes.shareNotesAsChatContext"
+                },
+                {
+                    "command": "vscodenotes.refreshNotesPanel",
+                    "when": "false"
+                },
+                {
+                    "command": "vscodenotes.closeNotesFile",
+                    "when": "false"
+                },
+                {
+                    "command": "vscodenotes.openNoteLocation",
+                    "when": "false"
+                },
+                {
+                    "command": "vscodenotes.editNote",
+                    "when": "false"
+                },
+                {
+                    "command": "vscodenotes.deleteNote",
+                    "when": "false"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "VSCODE Notes",
+            "properties": {
+                "vscodenotes.hover.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show local notes when hovering over marked code."
+                },
+                "vscodenotes.hover.maxNotes": {
+                    "type": "number",
+                    "default": 5,
+                    "minimum": 1,
+                    "maximum": 20,
+                    "description": "Maximum number of notes shown in a single hover."
+                },
+                "vscodenotes.expiry": {
+                    "type": "string",
+                    "default": "none",
+                    "enum": ["none", "1h", "1d", "7d", "30d", "90d"],
+                    "enumDescriptions": [
+                        "Keep notes indefinitely.",
+                        "Auto-delete notes after 1 hour.",
+                        "Auto-delete notes after 1 day.",
+                        "Auto-delete notes after 7 days.",
+                        "Auto-delete notes after 30 days.",
+                        "Auto-delete notes after 90 days."
+                    ],
+                    "description": "How long notes are kept before auto-delete. Use none to keep notes indefinitely."
+                },
+                "vscodenotes.inlineNotes.enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Show notes as inline editor hints."
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "package": "npm run compile",
+        "format": "prettier . --write",
+        "format:check": "prettier . --check"
+    },
+    "dependencies": {
+        "drizzle-orm": "^0.45.2",
+        "sql.js": "^1.10.3"
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.30",
+        "@types/sql.js": "^1.4.9",
+        "@types/vscode": "^1.90.0",
+        "prettier": "^3.8.4",
+        "typescript": "^5.4.5"
+    }
+}

@@ -1,0 +1,8 @@
+node_modules/
+out/
+.vscode-test/
+*.vsix
+*.sqlite
+*.sqlite3
+*.db
+.DS_Store
