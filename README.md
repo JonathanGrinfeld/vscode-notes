@@ -34,17 +34,6 @@ The extension watches the database file for changes and reloads it when another 
 - `vscodenotes.hover.enabled`: Enables or disables note hovers.
 - `vscodenotes.hover.maxNotes`: Maximum number of notes shown in a single hover.
 
-## Development
-
-Install dependencies and compile:
-
-```bash
-npm install
-npm run compile
-```
-
-Launch the extension development host with `F5` in VS Code.
-
 ## Notes On Matching Code
 
 Each note is stored with the file URI, selected range, and selected text. The stored range is used first. If code moves within the same file, the extension also tries to match the original selected text so the note can still appear on hover.
