@@ -1,12 +1,12 @@
 {
     "name": "vscodenotes",
     "displayName": "VSCODE Notes",
-    "description": "Local-only code notes stored in SQLite.",
-    "version": "0.0.1",
-    "private": true,
+    "description": "Save and manage notes in the code files, while keeping them local",
+    "version": "1.0.0",
     "license": "MIT",
     "publisher": "JonathanGrinfeld",
     "author": "Jonathan Grinfeld",
+    "repository": {"url": "https://github.com/JonathanGrinfeld/vscode-notes"},
     "engines": {
         "vscode": "^1.90.0"
     },
