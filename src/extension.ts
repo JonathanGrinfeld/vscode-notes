@@ -107,6 +107,7 @@ async function createNoteFromSelection(noteStore: NoteStore): Promise<void> {
         selectedText,
         body: body.trim()
     });
+    await refreshVisibleNoteUi(noteStore);
 }
 
 async function openStorageLocation(noteStore: NoteStore): Promise<void> {
@@ -129,6 +130,7 @@ async function removeNoteAtCursor(noteStore: NoteStore): Promise<void> {
     }
 
     await noteStore.deleteNotes(matchingNotes.map((note) => note.id));
+    await refreshVisibleNoteUi(noteStore);
 }
 
 async function editNote(noteStore: NoteStore, noteArgument: string | StoredNote | WorkspaceNoteTreeItem): Promise<void> {
@@ -157,10 +159,12 @@ async function editNote(noteStore: NoteStore, noteArgument: string | StoredNote 
     }
 
     await noteStore.updateNoteBody(noteId, trimmedBody);
+    await refreshVisibleNoteUi(noteStore);
 }
 
 async function deleteNote(noteStore: NoteStore, noteArgument: string | StoredNote | WorkspaceNoteTreeItem): Promise<void> {
     await noteStore.deleteNote(resolveNoteId(noteArgument));
+    await refreshVisibleNoteUi(noteStore);
 }
 
 async function configureNotes(noteStore: NoteStore): Promise<void> {
@@ -276,6 +280,23 @@ async function updateNoteAtCursorContext(noteStore: NoteStore): Promise<boolean>
 
     const notes = await noteStore.getNotesForDocument(editor.document.uri.toString());
     return notes.some((note) => noteMatchesPosition(note, editor.document, editor.selection.active));
+}
+
+async function refreshVisibleNoteUi(noteStore: NoteStore): Promise<void> {
+    await vscode.commands.executeCommand('editor.action.hideHover').then(undefined, () => undefined);
+
+    const editor = vscode.window.activeTextEditor;
+
+    if (!editor) {
+        return;
+    }
+
+    const notes = await noteStore.getNotesForDocument(editor.document.uri.toString());
+    const hasNoteAtCursor = notes.some((note) => noteMatchesPosition(note, editor.document, editor.selection.active));
+
+    if (hasNoteAtCursor) {
+        await vscode.commands.executeCommand('editor.action.showHover').then(undefined, () => undefined);
+    }
 }
 
 function resolveNoteId(noteArgument: string | StoredNote | WorkspaceNoteTreeItem): string {
