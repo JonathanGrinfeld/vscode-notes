@@ -6,3 +6,4 @@ out/
 *.sqlite3
 *.db
 .DS_Store
+dist/

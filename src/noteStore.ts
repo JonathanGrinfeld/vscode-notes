@@ -194,7 +194,7 @@ export class NoteStore implements vscode.Disposable {
     private async open(): Promise<void> {
         await vscode.workspace.fs.createDirectory(this.storageUri);
         this.sql = await initSqlJs({
-            locateFile: (fileName) => path.join(this.context.extensionPath, 'node_modules', 'sql.js', 'dist', fileName)
+            locateFile: (fileName) => path.join(this.context.extensionPath, 'dist', fileName)
         });
 
         await this.loadFromDisk();

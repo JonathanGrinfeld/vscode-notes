@@ -3,6 +3,7 @@
     "displayName": "VSCODE Notes",
     "description": "Save and manage notes in the code files, while keeping them local",
     "version": "1.0.0",
+    "icon": "assets/vscode-notes.png",
     "license": "MIT",
     "publisher": "JonathanGrinfeld",
     "author": "Jonathan Grinfeld",
@@ -19,7 +20,7 @@
     "activationEvents": [
         "onStartupFinished"
     ],
-    "main": "./out/extension.js",
+    "main": "./dist/extension.js",
     "contributes": {
         "commands": [
             {
@@ -43,6 +44,11 @@
                 "command": "vscodenotes.closeNotesFile",
                 "title": "vscode-notes: Close File in Notes Panel",
                 "icon": "$(close)"
+            },
+            {
+                "command": "vscodenotes.openNotesFile",
+                "title": "vscode-notes: Open File in Notes Panel",
+                "icon": "$(eye)"
             },
             {
                 "command": "vscodenotes.openNoteLocation",
@@ -69,12 +75,30 @@
                 "icon": "$(comment-discussion)"
             }
         ],
+        "viewsContainers": {
+            "panel": [
+                {
+                    "id": "vscodenotes-panel",
+                    "title": "VSCODE Notes",
+                    "icon": "assets/vscode-notes.png"
+                }
+            ]
+        },
         "views": {
             "explorer": [
                 {
                     "id": "vscodenotes.workspaceNotes",
                     "name": "Notes",
-                    "when": "workspaceFolderCount != 0"
+                    "when": "workspaceFolderCount != 0",
+                    "icon": "$(output)"
+                }
+            ],
+            "vscodenotes-panel": [
+                {
+                    "id": "vscodenotes.panelNotes",
+                    "name": "Notes",
+                    "when": "workspaceFolderCount != 0",
+                    "icon": "$(output)"
                 }
             ]
         },
@@ -112,15 +136,40 @@
                     "group": "navigation@1"
                 },
                 {
+                    "command": "vscodenotes.refreshNotesPanel",
+                    "when": "view == vscodenotes.panelNotes",
+                    "group": "navigation@1"
+                },
+                {
                     "command": "vscodenotes.configure",
                     "when": "view == vscodenotes.workspaceNotes",
+                    "group": "navigation@2"
+                },
+                {
+                    "command": "vscodenotes.configure",
+                    "when": "view == vscodenotes.panelNotes",
                     "group": "navigation@2"
                 }
             ],
             "view/item/context": [
                 {
                     "command": "vscodenotes.closeNotesFile",
-                    "when": "view == vscodenotes.workspaceNotes && viewItem == notesFile",
+                    "when": "view == vscodenotes.workspaceNotes && viewItem == notesFileOpen",
+                    "group": "inline@1"
+                },
+                {
+                    "command": "vscodenotes.closeNotesFile",
+                    "when": "view == vscodenotes.panelNotes && viewItem == notesFileOpen",
+                    "group": "inline@1"
+                },
+                {
+                    "command": "vscodenotes.openNotesFile",
+                    "when": "view == vscodenotes.workspaceNotes && viewItem == notesFileClosed",
+                    "group": "inline@1"
+                },
+                {
+                    "command": "vscodenotes.openNotesFile",
+                    "when": "view == vscodenotes.panelNotes && viewItem == notesFileClosed",
                     "group": "inline@1"
                 },
                 {
@@ -129,8 +178,18 @@
                     "group": "inline@1"
                 },
                 {
+                    "command": "vscodenotes.editNote",
+                    "when": "view == vscodenotes.panelNotes && viewItem == note",
+                    "group": "inline@1"
+                },
+                {
                     "command": "vscodenotes.deleteNote",
                     "when": "view == vscodenotes.workspaceNotes && viewItem == note",
+                    "group": "inline@2"
+                },
+                {
+                    "command": "vscodenotes.deleteNote",
+                    "when": "view == vscodenotes.panelNotes && viewItem == note",
                     "group": "inline@2"
                 }
             ],
@@ -162,6 +221,10 @@
                 },
                 {
                     "command": "vscodenotes.openNoteLocation",
+                    "when": "false"
+                },
+                {
+                    "command": "vscodenotes.openNotesFile",
                     "when": "false"
                 },
                 {
@@ -212,10 +275,14 @@
         }
     },
     "scripts": {
-        "vscode:prepublish": "npm run compile",
-        "compile": "tsc -p ./",
-        "watch": "tsc -watch -p ./",
-        "package": "npm run compile",
+        "vscode:prepublish": "npm run package",
+        "check-types": "tsc --noEmit -p ./",
+        "bundle": "node ./esbuild.js",
+        "bundle:watch": "node ./esbuild.js --watch",
+        "bundle:prod": "node ./esbuild.js --production",
+        "compile": "npm run check-types && npm run bundle",
+        "watch": "npm run bundle:watch",
+        "package": "npm run check-types && npm run bundle:prod",
         "format": "prettier . --write",
         "format:check": "prettier . --check"
     },
@@ -227,6 +294,7 @@
         "@types/node": "^20.11.30",
         "@types/sql.js": "^1.4.9",
         "@types/vscode": "^1.90.0",
+        "esbuild": "^0.25.9",
         "prettier": "^3.8.4",
         "typescript": "^5.4.5"
     }

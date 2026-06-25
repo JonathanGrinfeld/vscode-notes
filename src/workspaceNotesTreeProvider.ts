@@ -1,16 +1,17 @@
 import * as vscode from 'vscode';
 
-import { createNoteTooltip, formatRangeDescription, groupNotesByDocument, NoteFileGroup, trimForDisplay } from './noteFormatting';
+import { createNoteTooltip, groupNotesByDocument, NoteFileGroup, trimForDisplay } from './noteFormatting';
 import { NoteStore } from './noteStore';
 import { noteRangeToVsCodeRange } from './rangeSerializer';
 import { StoredNote } from './types';
 
-export type NotesTreeElement = FileNotesTreeItem | WorkspaceNoteTreeItem;
+export type NotesTreeElement = NotesSectionTreeItem | FileNotesTreeItem | WorkspaceNoteTreeItem;
 
 export class WorkspaceNotesTreeProvider implements vscode.TreeDataProvider<NotesTreeElement>, vscode.Disposable {
     private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<NotesTreeElement | undefined | null | void>();
     private readonly hiddenDocumentUris = new Set<string>();
     private readonly noteStoreSubscription: vscode.Disposable;
+    private readonly notesSection = new NotesSectionTreeItem();
 
     public readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
@@ -32,19 +33,35 @@ export class WorkspaceNotesTreeProvider implements vscode.TreeDataProvider<Notes
         this.refresh();
     }
 
+    public showFile(documentUri: string): void {
+        this.hiddenDocumentUris.delete(documentUri);
+        this.refresh();
+    }
+
     public getTreeItem(element: NotesTreeElement): vscode.TreeItem {
         return element;
     }
 
     public async getChildren(element?: NotesTreeElement): Promise<NotesTreeElement[]> {
+        if (!element) {
+            return [this.notesSection];
+        }
+
+        if (element instanceof NotesSectionTreeItem) {
+            const notes = await this.noteStore.getNotesForWorkspace();
+            return groupNotesByDocument(notes)
+                .map((group) => new FileNotesTreeItem(group, this.hiddenDocumentUris.has(group.documentUri)));
+        }
+
         if (element instanceof FileNotesTreeItem) {
+            if (element.isHidden) {
+                return [];
+            }
+
             return element.notes.map((note) => new WorkspaceNoteTreeItem(note));
         }
 
-        const notes = await this.noteStore.getNotesForWorkspace();
-        return groupNotesByDocument(notes)
-            .filter((group) => !this.hiddenDocumentUris.has(group.documentUri))
-            .map((group) => new FileNotesTreeItem(group));
+        return [];
     }
 
     public dispose(): void {
@@ -53,31 +70,42 @@ export class WorkspaceNotesTreeProvider implements vscode.TreeDataProvider<Notes
     }
 }
 
+class NotesSectionTreeItem extends vscode.TreeItem {
+    public constructor() {
+        super('Notes', vscode.TreeItemCollapsibleState.Expanded);
+
+        this.id = 'section:notes';
+        this.iconPath = new vscode.ThemeIcon('notebook-template');
+        this.contextValue = 'notesSection';
+    }
+}
+
 export class FileNotesTreeItem extends vscode.TreeItem {
     public readonly documentUri: string;
+    public readonly isHidden: boolean;
     public readonly notes: readonly StoredNote[];
 
-    public constructor(group: NoteFileGroup) {
-        super(group.resourceUri, vscode.TreeItemCollapsibleState.Expanded);
+    public constructor(group: NoteFileGroup, isHidden: boolean) {
+        super(group.resourceUri, isHidden ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed);
 
         this.documentUri = group.documentUri;
+        this.isHidden = isHidden;
         this.notes = group.notes;
         this.id = `file:${group.documentUri}`;
         this.resourceUri = group.resourceUri;
         this.iconPath = vscode.ThemeIcon.File;
-        this.description = `${group.notes.length} ${group.notes.length === 1 ? 'note' : 'notes'}`;
-        this.tooltip = `${group.relativePath}\n${this.description}`;
-        this.contextValue = 'notesFile';
+        this.tooltip = `${group.relativePath}\n${group.notes.length} ${group.notes.length === 1 ? 'note' : 'notes'}`;
+        this.contextValue = isHidden ? 'notesFileClosed' : 'notesFileOpen';
     }
 }
 
 export class WorkspaceNoteTreeItem extends vscode.TreeItem {
     public constructor(public readonly note: StoredNote) {
-        super(trimForDisplay(note.body, 64), vscode.TreeItemCollapsibleState.None);
+        super(`Line ${note.range.startLine + 1}: ${trimForDisplay(note.body, 64)}`, vscode.TreeItemCollapsibleState.None);
 
         this.id = `note:${note.id}`;
         this.iconPath = new vscode.ThemeIcon('note');
-        this.description = formatRangeDescription(note);
+        this.description = undefined;
         this.tooltip = createNoteTooltip(note);
         this.contextValue = 'note';
         this.command = {

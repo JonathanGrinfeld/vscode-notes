@@ -33,6 +33,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             treeDataProvider: notesTreeProvider,
             showCollapseAll: true
         }),
+        vscode.window.createTreeView('vscodenotes.panelNotes', {
+            treeDataProvider: notesTreeProvider,
+            showCollapseAll: true
+        }),
         vscode.languages.registerHoverProvider(hoverDocumentSelector, new NotesHoverProvider(noteStore)),
         vscode.languages.registerInlayHintsProvider(hoverDocumentSelector, inlayHintsProvider),
         vscode.commands.registerCommand('vscodenotes.createNote', () => createNoteFromSelection(noteStore)),
@@ -44,6 +48,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
             if (documentUri) {
                 notesTreeProvider.hideFile(documentUri);
+            }
+        }),
+        vscode.commands.registerCommand('vscodenotes.openNotesFile', (element: FileNotesTreeItem | string | undefined) => {
+            const documentUri = getDocumentUriFromTreeItem(element);
+
+            if (documentUri) {
+                notesTreeProvider.showFile(documentUri);
             }
         }),
         vscode.commands.registerCommand('vscodenotes.openNoteLocation', (note: StoredNote | WorkspaceNoteTreeItem) => {
@@ -89,7 +100,7 @@ async function createNoteFromSelection(noteStore: NoteStore): Promise<void> {
     const body = await vscode.window.showInputBox({
         title: 'Create Note',
         prompt: 'Write a local note for the selected code.',
-        placeHolder: 'This is local to your VS Code install and stored in SQLite.',
+        placeHolder: 'This is local to your VS Code and wont be shared',
         ignoreFocusOut: true,
         validateInput: (value) => (value.trim().length === 0 ? 'Enter a note.' : undefined)
     });
