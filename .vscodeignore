@@ -8,3 +8,5 @@ esbuild.js
 tsconfig.json
 .gitignore
 CONTRIBUTING.md
+.prettierignore
+.prettierrc
