@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 import { createNoteTooltip, groupNotesByDocument, NoteFileGroup, trimForDisplay } from './noteFormatting';
-import { NoteStore } from './noteStore';
+import { DocumentUriRemap, NoteStore } from './noteStore';
 import { noteRangeToVsCodeRange } from './rangeSerializer';
 import { StoredNote } from './types';
 
@@ -38,6 +38,38 @@ export class WorkspaceNotesTreeProvider implements vscode.TreeDataProvider<Notes
         this.refresh();
     }
 
+    public remapHiddenFileDocumentUris(remaps: readonly DocumentUriRemap[]): void {
+        let changed = false;
+
+        for (const remap of remaps) {
+            if (this.hiddenDocumentUris.delete(remap.fromDocumentUri)) {
+                this.hiddenDocumentUris.add(remap.toDocumentUri);
+                changed = true;
+            }
+
+            if (!remap.isDirectory) {
+                continue;
+            }
+
+            const fromPrefix = toDirectoryDocumentUriPrefix(remap.fromDocumentUri);
+            const toPrefix = toDirectoryDocumentUriPrefix(remap.toDocumentUri);
+
+            for (const documentUri of [...this.hiddenDocumentUris]) {
+                if (!documentUri.startsWith(fromPrefix)) {
+                    continue;
+                }
+
+                this.hiddenDocumentUris.delete(documentUri);
+                this.hiddenDocumentUris.add(`${toPrefix}${documentUri.slice(fromPrefix.length)}`);
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            this.refresh();
+        }
+    }
+
     public getTreeItem(element: NotesTreeElement): vscode.TreeItem {
         return element;
     }
@@ -49,8 +81,9 @@ export class WorkspaceNotesTreeProvider implements vscode.TreeDataProvider<Notes
 
         if (element instanceof NotesSectionTreeItem) {
             const notes = await this.noteStore.getNotesForWorkspace();
-            return groupNotesByDocument(notes)
-                .map((group) => new FileNotesTreeItem(group, this.hiddenDocumentUris.has(group.documentUri)));
+            const groups = await filterGroupsWithExistingResources(groupNotesByDocument(notes));
+
+            return groups.map((group) => new FileNotesTreeItem(group, this.hiddenDocumentUris.has(group.documentUri)));
         }
 
         if (element instanceof FileNotesTreeItem) {
@@ -134,4 +167,27 @@ export async function revealNoteInEditor(note: StoredNote): Promise<void> {
     const range = noteRangeToVsCodeRange(note.range);
     editor.selection = new vscode.Selection(range.start, range.end);
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+}
+
+async function filterGroupsWithExistingResources(groups: readonly NoteFileGroup[]): Promise<NoteFileGroup[]> {
+    const existence = await Promise.all(groups.map((group) => doesResourceExist(group.resourceUri)));
+
+    return groups.filter((_group, index) => existence[index]);
+}
+
+async function doesResourceExist(resourceUri: vscode.Uri): Promise<boolean> {
+    try {
+        await vscode.workspace.fs.stat(resourceUri);
+        return true;
+    } catch (error) {
+        if (error instanceof vscode.FileSystemError) {
+            return false;
+        }
+
+        return false;
+    }
+}
+
+function toDirectoryDocumentUriPrefix(documentUri: string): string {
+    return documentUri.endsWith('/') ? documentUri : `${documentUri}/`;
 }

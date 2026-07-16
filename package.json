@@ -73,9 +73,21 @@
                 "command": "vscodenotes.shareNotesAsChatContext",
                 "title": "vscode-notes: Share Notes as Chat Context",
                 "icon": "$(comment-discussion)"
+            },
+            {
+                "command": "vscodenotes.implementNoteWithCopilot",
+                "title": "vscode-notes: Implement Note with Copilot",
+                "icon": "$(comment-discussion)"
             }
         ],
         "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "vscodenotes-sidebar",
+                    "title": "VSCODE Notes",
+                    "icon": "assets/vscode-notes-activity.svg"
+                }
+            ],
             "panel": [
                 {
                     "id": "vscodenotes-panel",
@@ -85,7 +97,7 @@
             ]
         },
         "views": {
-            "explorer": [
+            "vscodenotes-sidebar": [
                 {
                     "id": "vscodenotes.workspaceNotes",
                     "name": "Notes",
@@ -191,6 +203,16 @@
                     "command": "vscodenotes.deleteNote",
                     "when": "view == vscodenotes.panelNotes && viewItem == note",
                     "group": "inline@2"
+                },
+                {
+                    "command": "vscodenotes.implementNoteWithCopilot",
+                    "when": "view == vscodenotes.workspaceNotes && viewItem == note",
+                    "group": "inline@3"
+                },
+                {
+                    "command": "vscodenotes.implementNoteWithCopilot",
+                    "when": "view == vscodenotes.panelNotes && viewItem == note",
+                    "group": "inline@3"
                 }
             ],
             "commandPalette": [
@@ -233,6 +255,10 @@
                 },
                 {
                     "command": "vscodenotes.deleteNote",
+                    "when": "false"
+                },
+                {
+                    "command": "vscodenotes.implementNoteWithCopilot",
                     "when": "false"
                 }
             ]

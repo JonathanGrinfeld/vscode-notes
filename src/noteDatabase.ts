@@ -141,6 +141,31 @@ export class NoteDatabase {
             .all().length;
     }
 
+    public moveNotesToDocument(fromDocumentUri: string, toDocumentUri: string, updatedAt: number): number {
+        return this.orm
+            .update(notesTable)
+            .set({ documentUri: toDocumentUri, updatedAt })
+            .where(eq(notesTable.documentUri, fromDocumentUri))
+            .returning({ id: notesTable.id })
+            .all().length;
+    }
+
+    public moveNotesToDocumentPrefix(fromDocumentUriPrefix: string, toDocumentUriPrefix: string, updatedAt: number): number {
+        const escapedPrefix = escapeLikePattern(fromDocumentUriPrefix);
+        const likePattern = `${escapedPrefix}%`;
+        const prefixLength = fromDocumentUriPrefix.length;
+
+        return this.orm
+            .update(notesTable)
+            .set({
+                documentUri: sql`${toDocumentUriPrefix} || substr(${notesTable.documentUri}, ${prefixLength + 1})`,
+                updatedAt
+            })
+            .where(sql`${notesTable.documentUri} LIKE ${likePattern} ESCAPE '\\'`)
+            .returning({ id: notesTable.id })
+            .all().length;
+    }
+
     public deleteExpiredNotes(expiresAtOrBefore: number): number {
         return this.orm
             .delete(notesTable)
@@ -148,6 +173,10 @@ export class NoteDatabase {
             .returning({ id: notesTable.id })
             .all().length;
     }
+}
+
+function escapeLikePattern(value: string): string {
+    return value.replace(/([%_\\])/g, '\\$1');
 }
 
 function noteToRow(note: StoredNote): NewNoteRow {

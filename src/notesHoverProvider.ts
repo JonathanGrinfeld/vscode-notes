@@ -29,7 +29,9 @@ export class NotesHoverProvider implements vscode.HoverProvider {
         const visibleNotes = matchingNotes.slice(0, Math.max(1, maxNotes));
         const markdown = new vscode.MarkdownString('', true);
         markdown.supportThemeIcons = true;
-        markdown.isTrusted = { enabledCommands: ['vscodenotes.editNote', 'vscodenotes.deleteNote'] };
+        markdown.isTrusted = {
+            enabledCommands: ['vscodenotes.editNote', 'vscodenotes.deleteNote', 'vscodenotes.implementNoteWithCopilot']
+        };
         markdown.appendMarkdown('$(note) **VSCODE Notes**\n\n');
 
         visibleNotes.forEach((note, index) => {
@@ -41,6 +43,9 @@ export class NotesHoverProvider implements vscode.HoverProvider {
             markdown.appendMarkdown(`\n\n_${formatNoteTimestamps(note)}._`);
             markdown.appendMarkdown(`\n\n[$(edit) Edit](${createCommandUri('vscodenotes.editNote', note.id)})`);
             markdown.appendMarkdown(` [$(trash) Delete](${createCommandUri('vscodenotes.deleteNote', note.id)})`);
+            markdown.appendMarkdown(
+                ` [$(comment-discussion) Implement with AI](${createCommandUri('vscodenotes.implementNoteWithCopilot', note.id)})`
+            );
 
             if (index < visibleNotes.length - 1) {
                 markdown.appendMarkdown('\n\n---\n\n');
