@@ -8,6 +8,12 @@ import * as vscode from 'vscode';
 import { NoteDatabase } from './noteDatabase';
 import { CreateNoteInput, StoredNote } from './types';
 
+export interface DocumentUriRemap {
+    readonly fromDocumentUri: string;
+    readonly toDocumentUri: string;
+    readonly isDirectory: boolean;
+}
+
 export class NoteStore implements vscode.Disposable {
     private readonly databaseFileName = 'notes.sqlite';
     private readonly onDidChangeEmitter = new vscode.EventEmitter<void>();
@@ -176,6 +182,42 @@ export class NoteStore implements vscode.Disposable {
         });
     }
 
+    public async remapDocumentUris(remaps: readonly DocumentUriRemap[]): Promise<number> {
+        if (remaps.length === 0) {
+            return 0;
+        }
+
+        await this.initialize();
+
+        return this.runSerialized(async () => {
+            await this.refreshFromDiskIfChanged();
+            await this.deleteExpiredNotesIfNeeded();
+
+            let movedCount = 0;
+            const noteDatabase = this.getNoteDatabase();
+            const updatedAt = Date.now();
+
+            for (const remap of remaps) {
+                movedCount += noteDatabase.moveNotesToDocument(remap.fromDocumentUri, remap.toDocumentUri, updatedAt);
+
+                if (remap.isDirectory) {
+                    movedCount += noteDatabase.moveNotesToDocumentPrefix(
+                        toDirectoryDocumentUriPrefix(remap.fromDocumentUri),
+                        toDirectoryDocumentUriPrefix(remap.toDocumentUri),
+                        updatedAt
+                    );
+                }
+            }
+
+            if (movedCount > 0) {
+                await this.persist();
+                this.onDidChangeEmitter.fire();
+            }
+
+            return movedCount;
+        });
+    }
+
     public async pruneExpiredNotes(): Promise<number> {
         await this.initialize();
 
@@ -194,7 +236,7 @@ export class NoteStore implements vscode.Disposable {
     private async open(): Promise<void> {
         await vscode.workspace.fs.createDirectory(this.storageUri);
         this.sql = await initSqlJs({
-            locateFile: (fileName) => path.join(this.context.extensionPath, 'node_modules', 'sql.js', 'dist', fileName)
+            locateFile: (fileName) => path.join(this.context.extensionPath, 'dist', fileName)
         });
 
         await this.loadFromDisk();
@@ -347,4 +389,8 @@ function getNoteExpiryMs(): number | undefined {
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
     return error instanceof Error && 'code' in error;
+}
+
+function toDirectoryDocumentUriPrefix(documentUri: string): string {
+    return documentUri.endsWith('/') ? documentUri : `${documentUri}/`;
 }

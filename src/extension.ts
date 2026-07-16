@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import { NoteStore } from './noteStore';
+import { DocumentUriRemap, NoteStore } from './noteStore';
 import { registerNotesChatParticipant, shareNotesAsChatContext } from './notesChat';
 import { NotesInlayHintsProvider } from './notesInlayHintsProvider';
 import { NotesHoverProvider } from './notesHoverProvider';
@@ -33,6 +33,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             treeDataProvider: notesTreeProvider,
             showCollapseAll: true
         }),
+        vscode.window.createTreeView('vscodenotes.panelNotes', {
+            treeDataProvider: notesTreeProvider,
+            showCollapseAll: true
+        }),
         vscode.languages.registerHoverProvider(hoverDocumentSelector, new NotesHoverProvider(noteStore)),
         vscode.languages.registerInlayHintsProvider(hoverDocumentSelector, inlayHintsProvider),
         vscode.commands.registerCommand('vscodenotes.createNote', () => createNoteFromSelection(noteStore)),
@@ -46,6 +50,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 notesTreeProvider.hideFile(documentUri);
             }
         }),
+        vscode.commands.registerCommand('vscodenotes.openNotesFile', (element: FileNotesTreeItem | string | undefined) => {
+            const documentUri = getDocumentUriFromTreeItem(element);
+
+            if (documentUri) {
+                notesTreeProvider.showFile(documentUri);
+            }
+        }),
         vscode.commands.registerCommand('vscodenotes.openNoteLocation', (note: StoredNote | WorkspaceNoteTreeItem) => {
             const resolvedNote = getNoteFromTreeItem(note);
             return resolvedNote ? revealNoteInEditor(resolvedNote) : undefined;
@@ -56,9 +67,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.commands.registerCommand('vscodenotes.deleteNote', (note: string | StoredNote | WorkspaceNoteTreeItem) =>
             deleteNote(noteStore, note)
         ),
+        vscode.commands.registerCommand(
+            'vscodenotes.implementNoteWithCopilot',
+            (note: string | StoredNote | WorkspaceNoteTreeItem) => implementNoteWithCopilot(noteStore, note)
+        ),
         vscode.commands.registerCommand('vscodenotes.configure', () => configureNotes(noteStore)),
         vscode.commands.registerCommand('vscodenotes.shareNotesAsChatContext', () => shareNotesAsChatContext(noteStore)),
         ...(chatParticipant ? [chatParticipant] : [])
+    );
+
+    context.subscriptions.push(
+        vscode.workspace.onDidRenameFiles((event) => {
+            void remapNotesForRenamedFiles(noteStore, notesTreeProvider, event).catch((error) => {
+                console.warn('vscodenotes failed to remap notes for renamed files', error);
+            });
+        }),
+        vscode.workspace.onDidDeleteFiles(() => notesTreeProvider.refresh()),
+        vscode.workspace.onDidCreateFiles(() => notesTreeProvider.refresh())
     );
 
     registerNoteAtCursorContext(context, noteStore);
@@ -89,7 +114,7 @@ async function createNoteFromSelection(noteStore: NoteStore): Promise<void> {
     const body = await vscode.window.showInputBox({
         title: 'Create Note',
         prompt: 'Write a local note for the selected code.',
-        placeHolder: 'This is local to your VS Code install and stored in SQLite.',
+        placeHolder: 'This is local to your VS Code and wont be shared',
         ignoreFocusOut: true,
         validateInput: (value) => (value.trim().length === 0 ? 'Enter a note.' : undefined)
     });
@@ -165,6 +190,37 @@ async function editNote(noteStore: NoteStore, noteArgument: string | StoredNote 
 async function deleteNote(noteStore: NoteStore, noteArgument: string | StoredNote | WorkspaceNoteTreeItem): Promise<void> {
     await noteStore.deleteNote(resolveNoteId(noteArgument));
     await refreshVisibleNoteUi(noteStore);
+}
+
+async function implementNoteWithCopilot(
+    noteStore: NoteStore,
+    noteArgument: string | StoredNote | WorkspaceNoteTreeItem
+): Promise<void> {
+    const note = typeof noteArgument === 'string' ? await noteStore.getNote(noteArgument) : getNoteFromTreeItem(noteArgument);
+
+    if (!note) {
+        return;
+    }
+
+    await revealNoteInEditor(note);
+
+    const prompt = `Implement this note:\n\n${note.body}`;
+
+    try {
+        await vscode.commands.executeCommand('vscode.editorChat.start', { message: prompt, autoSend: false });
+        return;
+    } catch {
+        // Fall through to older inline chat command ids.
+    }
+
+    try {
+        await vscode.commands.executeCommand('inlineChat.start', { message: prompt, autoSend: false });
+        return;
+    } catch {
+        // Inline chat command unavailable.
+    }
+
+    await vscode.window.showWarningMessage('Copilot inline chat is unavailable in this VS Code environment.');
 }
 
 async function configureNotes(noteStore: NoteStore): Promise<void> {
@@ -327,5 +383,48 @@ function formatCurrentExpiry(): string {
             return '90 days';
         default:
             return 'None';
+    }
+}
+
+async function remapNotesForRenamedFiles(
+    noteStore: NoteStore,
+    notesTreeProvider: WorkspaceNotesTreeProvider,
+    event: vscode.FileRenameEvent
+): Promise<void> {
+    const remaps = await Promise.all(
+        event.files.map(async (change) => ({
+            fromDocumentUri: change.oldUri.toString(),
+            toDocumentUri: change.newUri.toString(),
+            isDirectory: await isDirectoryUri(change.newUri)
+        }))
+    );
+
+    const supportedRemaps = remaps.filter((remap) => isSupportedDocumentUriRemap(remap));
+
+    if (supportedRemaps.length === 0) {
+        return;
+    }
+
+    notesTreeProvider.remapHiddenFileDocumentUris(supportedRemaps);
+    await noteStore.remapDocumentUris(supportedRemaps);
+}
+
+function isSupportedDocumentUriRemap(remap: DocumentUriRemap): boolean {
+    if (remap.fromDocumentUri === remap.toDocumentUri) {
+        return false;
+    }
+
+    const fromScheme = vscode.Uri.parse(remap.fromDocumentUri, true).scheme;
+    const toScheme = vscode.Uri.parse(remap.toDocumentUri, true).scheme;
+
+    return fromScheme === 'file' || fromScheme === 'vscode-remote' ? toScheme === fromScheme : false;
+}
+
+async function isDirectoryUri(uri: vscode.Uri): Promise<boolean> {
+    try {
+        const stat = await vscode.workspace.fs.stat(uri);
+        return (stat.type & vscode.FileType.Directory) !== 0;
+    } catch {
+        return false;
     }
 }
